@@ -160,5 +160,4 @@ class ApplicationFormViewModel extends ChangeNotifier {
     _editingApplicationId = null;
     _errorMessage = null;
   }
-  //Remove this comment 
 }
