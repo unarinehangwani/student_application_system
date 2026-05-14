@@ -3,7 +3,8 @@
 //UNARINE HANGWANI 223059218
 //TSHIAMO GOMOLEMO GOITSEMODIMO 223059551
 //BENNY HLUNGWANE 224022767
-//Bukamuso Shudufhadzo Luvhengo 224015143
+//BUKAMUSO SHUDUFHADZO LUVHENGO 224015143
+
 class UserProfile {
   final String id;
   final String email;
@@ -31,8 +32,8 @@ class UserProfile {
       studentNumber: json['student_number'],
       yearOfStudy: json['year_of_study'],
       role: json['role'] ?? 'student',
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+      createdAt: json['created_at'] != null 
+          ? DateTime.parse(json['created_at']) 
           : DateTime.now(),
     );
   }

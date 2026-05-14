@@ -5,7 +5,9 @@
 //BENNY HLUNGWANE 224022767
 //BUKAMUSO SHUDUFHADZO LUVHENGO 224015143
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/application.dart';
 import '../services/application_service.dart';
@@ -31,21 +33,39 @@ class ApplicationFormViewModel extends ChangeNotifier {
   }
 
   Future<String?> uploadFile({
-    required File file,
     required String userId,
-    required String applicationId,
+    String? applicationId,
+    File? mobileFile,
+    Uint8List? webBytes,
+    String? fileName,
   }) async {
     try {
-      final fileExtension = file.path.split('.').last;
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = '${applicationId}_$timestamp.$fileExtension';
-      final storagePath = '$userId/$fileName';
+      final folderName = applicationId ?? 'temp_${userId}_$timestamp';
       
-      final fileBytes = await file.readAsBytes();
+      String storagePath;
       
-      await _supabase.storage
-          .from('application_documents')
-          .uploadBinary(storagePath, fileBytes);
+      if (kIsWeb && webBytes != null && fileName != null) {
+        final safeFileName = '${timestamp}_$fileName';
+        storagePath = '$folderName/$safeFileName';
+        
+        await _supabase.storage
+            .from('application_documents')
+            .uploadBinary(storagePath, webBytes);
+            
+      } else if (mobileFile != null) {
+        final fileExtension = mobileFile.path.split('.').last;
+        final safeFileName = '${timestamp}_$timestamp.$fileExtension';
+        storagePath = '$folderName/$safeFileName';
+        
+        final fileBytes = await mobileFile.readAsBytes();
+        
+        await _supabase.storage
+            .from('application_documents')
+            .uploadBinary(storagePath, fileBytes);
+      } else {
+        throw Exception('No file provided');
+      }
       
       final publicUrl = _supabase.storage
           .from('application_documents')
@@ -61,7 +81,9 @@ class ApplicationFormViewModel extends ChangeNotifier {
     required int yearOfStudy,
     required Map<String, dynamic> firstModule,
     required Map<String, dynamic>? secondModule,
-    required File? document,
+    File? mobileFile,
+    Uint8List? webFileBytes,
+    String? webFileName,
     String? additionalNotes,
     String? existingDocumentUrl,
   }) async {
@@ -71,36 +93,39 @@ class ApplicationFormViewModel extends ChangeNotifier {
 
     try {
       final userId = _supabase.auth.currentUser!.id;
-      final applicationId = _editingApplicationId ?? DateTime.now().millisecondsSinceEpoch.toString();
       
       String? documentUrl = existingDocumentUrl;
       
-      // Upload new document if provided
-      if (document != null) {
+      if (kIsWeb && webFileBytes != null && webFileName != null) {
         documentUrl = await uploadFile(
-          file: document,
           userId: userId,
-          applicationId: applicationId,
+          applicationId: null,
+          webBytes: webFileBytes,
+          fileName: webFileName,
+        );
+      } else if (mobileFile != null) {
+        documentUrl = await uploadFile(
+          userId: userId,
+          applicationId: null,
+          mobileFile: mobileFile,
         );
       }
       
-      if (documentUrl == null) {
+      if (documentUrl == null && existingDocumentUrl == null) {
         throw Exception('Document is required');
       }
       
-      // Prepare application data
       final applicationData = {
-        if (_editingApplicationId == null) 'id': applicationId,
         'user_id': userId,
         'year_of_study': yearOfStudy,
         'status': 'pending',
-        'document_url': documentUrl,
+        'document_url': documentUrl ?? existingDocumentUrl,
         'additional_notes': additionalNotes,
         'submitted_at': DateTime.now().toIso8601String(),
       };
       
-      // Insert or update application
       String finalApplicationId;
+      
       if (_editingApplicationId == null) {
         final result = await _supabase
             .from('applications')
@@ -115,14 +140,12 @@ class ApplicationFormViewModel extends ChangeNotifier {
             .eq('id', _editingApplicationId!);
         finalApplicationId = _editingApplicationId!;
         
-        // Delete old module applications
         await _supabase
             .from('module_applications')
             .delete()
             .eq('application_id', _editingApplicationId!);
       }
       
-      // Insert module applications
       final modules = [firstModule];
       if (secondModule != null) {
         modules.add(secondModule);

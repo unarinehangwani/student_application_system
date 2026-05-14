@@ -21,12 +21,9 @@ import 'views/admin_dashboard_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  
   await Supabase.initialize(
-    url:
-        'https://hfmuuytblxcaxhnbnzxu.supabase.co', 
-    anonKey:
-        'sb_publishable_IgyouyrfFv6ISfHCpTIiEA_CwZXRA8M', 
+    url: 'https://hfmuuytblxcaxhnbnzxu.supabase.co',
+    anonKey: 'sb_publishable_IgyouyrfFv6ISfHCpTIiEA_CwZXRA8M',
   );
 
   runApp(const MyApp());
@@ -46,10 +43,7 @@ class MyApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: 'Student Assistant System',
-        theme: ThemeData(
-          primarySwatch: Colors.blue,
-          useMaterial3: true,
-        ),
+        theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
         debugShowCheckedModeBanner: false,
         initialRoute: '/',
         onGenerateRoute: (settings) {
@@ -60,10 +54,12 @@ class MyApp extends StatelessWidget {
               return MaterialPageRoute(builder: (_) => const LoginScreen());
             case '/student-home':
               return MaterialPageRoute(
-                  builder: (_) => const StudentHomeScreen());
+                builder: (_) => const StudentHomeScreen(),
+              );
             case '/admin-dashboard':
               return MaterialPageRoute(
-                  builder: (_) => const AdminDashboardScreen());
+                builder: (_) => const AdminDashboardScreen(),
+              );
             default:
               return MaterialPageRoute(builder: (_) => const AuthWrapper());
           }
@@ -81,9 +77,7 @@ class AuthWrapper extends StatelessWidget {
     final authViewModel = Provider.of<AuthViewModel>(context);
 
     if (authViewModel.isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (authViewModel.currentUser == null) {
