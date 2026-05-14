@@ -1,9 +1,5 @@
-//BONTLE NICO MOTHUDI 224124772
-// MSAWAKHE MLAMBO 223059218
-//UNARINE HANGWANI 223059218
-//TSHIAMO GOMOLEMO GOITSEMODIMO 223059551
-//BENNY HLUNGWANE 224022767
-//BUKAMUSO SHUDUFHADZO LUVHENGO 224015143
+//STUDENT NAMES :BONTLE NICO MOTHUDI, MSAWAKHE MLAMBO, UNARINE HANGWANI, TSHIAMO GOMOLEMO GOITSEMODIMO, BENNY HLUNGWANE, Bukamuso Shudufhadzo Luvhengo 
+//STUDENT NUMBERS : 224124772, 223059218,224073925, 223059551, 224022767, 224015143
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -23,45 +19,142 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AdminDashboardViewModel>(context, listen: false).loadApplications();
+      final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
+      // Redirect if student tries to access admin dashboard
+      if (authViewModel.userRole == 'student') {
+        Navigator.pushReplacementNamed(context, '/student-home');
+        return;
+      }
+      // Load applications
+      final viewModel = Provider.of<AdminDashboardViewModel>(context, listen: false);
+      viewModel.loadApplications();
     });
   }
 
-  Future<void> _handleStatusChange(Application application, String newStatus) async {
-    final viewModel = Provider.of<AdminDashboardViewModel>(context, listen: false);
-    
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${newStatus.toUpperCase()} Application'),
-        content: Text('Are you sure you want to ${newStatus.toLowerCase()} this application?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(
-              foregroundColor: newStatus == 'approved' ? Colors.green : Colors.red,
-            ),
-            child: Text(newStatus.toUpperCase()),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      final success = await viewModel.updateStatus(application.id, newStatus);
+  Future<void> _launchDocument(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success ? 'Application ${newStatus}d' : 'Update failed'),
-            backgroundColor: success ? Colors.green : Colors.red,
-          ),
+          const SnackBar(content: Text('Could not open document')),
         );
       }
     }
   }
 
-  Future<void> _deleteApplication(Application application) async {
+  Future<void> _updateStatus(AdminDashboardViewModel viewModel, String id, String status) async {
+    final success = await viewModel.updateStatus(id, status);
+    if (mounted && success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Application $status'), backgroundColor: Colors.green),
+      );
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update status'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _showReviewDialog(AdminDashboardViewModel viewModel, Application application) async {
+    String selectedStatus = application.status;
+    
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Review Application'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Student: ${application.studentName ?? "Unknown"}', 
+                         style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text('Student Number: ${application.studentNumber ?? "N/A"}'),
+                    Text('Email: ${application.studentEmail ?? "N/A"}'),
+                    Text('Year of Study: Year ${application.yearOfStudy}'),
+                    Text('Submitted: ${_formatDate(application.submittedAt)}'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Applied Modules:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              ...application.modules.map((module) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      module.meetsRequirements ? Icons.check_circle : Icons.warning,
+                      size: 16,
+                      color: module.meetsRequirements ? Colors.green : Colors.orange,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(module.moduleName)),
+                    Text('Year ${module.academicLevel}', style: const TextStyle(fontSize: 12)),
+                  ],
+                ),
+              )),
+              if (application.additionalNotes?.isNotEmpty == true) ...[
+                const SizedBox(height: 16),
+                const Text('Additional Notes:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(application.additionalNotes!),
+                ),
+              ],
+              const SizedBox(height: 16),
+              const Text('Decision:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'approved', label: Text('Approve'), icon: Icon(Icons.check_circle)),
+                  ButtonSegment(value: 'rejected', label: Text('Reject'), icon: Icon(Icons.cancel)),
+                  ButtonSegment(value: 'pending', label: Text('Pending'), icon: Icon(Icons.hourglass_empty)),
+                ],
+                selected: {selectedStatus},
+                onSelectionChanged: (Set<String> newSelection) {
+                  selectedStatus = newSelection.first;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _updateStatus(viewModel, application.id, selectedStatus);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+            child: const Text('Submit Review'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(AdminDashboardViewModel viewModel, String id) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -69,33 +162,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         content: const Text('Are you sure you want to delete this application? This action cannot be undone.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
         ],
       ),
     );
 
     if (confirm == true) {
-      final viewModel = Provider.of<AdminDashboardViewModel>(context, listen: false);
-      final success = await viewModel.deleteApplication(application.id);
-      if (mounted) {
+      final success = await viewModel.deleteApplication(id);
+      if (mounted && success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success ? 'Application deleted' : 'Delete failed'),
-            backgroundColor: success ? Colors.green : Colors.red,
-          ),
+          const SnackBar(content: Text('Application deleted'), backgroundColor: Colors.green),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to delete application'), backgroundColor: Colors.red),
         );
       }
-    }
-  }
-
-  Future<void> _viewDocument(String url) async {
-    final Uri uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
@@ -103,13 +185,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget build(BuildContext context) {
     final authViewModel = Provider.of<AuthViewModel>(context);
     final viewModel = Provider.of<AdminDashboardViewModel>(context);
+    
+    // Extra safety check - if student, don't show admin dashboard
+    if (authViewModel.userRole == 'student') {
+      return const Scaffold(
+        body: Center(child: Text('Students cannot access admin dashboard')),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Admin Dashboard'),
+        title: const Text('Admin Dashboard - Review Applications'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Center(
+              child: Text(
+                'Admin: ${authViewModel.currentUser?.email?.split('@').first ?? 'Admin'}',
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => viewModel.loadApplications(),
+            tooltip: 'Refresh',
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -118,129 +221,172 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Navigator.pushReplacementNamed(context, '/login');
               }
             },
+            tooltip: 'Logout',
           ),
         ],
       ),
       body: Column(
         children: [
           // Stats Cards
-          _buildStatsRow(viewModel),
-          
-          // Filter Tabs
-          _buildFilterTabs(viewModel),
-          
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                _buildStatCard('Total', viewModel.totalCount.toString(), Colors.blue),
+                const SizedBox(width: 12),
+                _buildStatCard('Pending', viewModel.pendingCount.toString(), Colors.orange),
+                const SizedBox(width: 12),
+                _buildStatCard('Approved', viewModel.approvedCount.toString(), Colors.green),
+                const SizedBox(width: 12),
+                _buildStatCard('Rejected', viewModel.rejectedCount.toString(), Colors.red),
+              ],
+            ),
+          ),
+          // Filter Chips
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                _buildFilterChip('All', 'all', viewModel),
+                const SizedBox(width: 8),
+                _buildFilterChip('Pending', 'pending', viewModel),
+                const SizedBox(width: 8),
+                _buildFilterChip('Approved', 'approved', viewModel),
+                const SizedBox(width: 8),
+                _buildFilterChip('Rejected', 'rejected', viewModel),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           // Applications List
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: () => viewModel.loadApplications(),
-              child: viewModel.isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : viewModel.applications.isEmpty
-                      ? const Center(child: Text('No applications found'))
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: viewModel.applications.length,
-                          itemBuilder: (context, index) {
-                            return _buildApplicationCard(viewModel.applications[index]);
-                          },
-                        ),
-            ),
+            child: _buildBody(viewModel),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatsRow(AdminDashboardViewModel viewModel) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          _buildStatCard('Total', viewModel.totalCount, Colors.blue),
-          _buildStatCard('Pending', viewModel.pendingCount, Colors.orange),
-          _buildStatCard('Approved', viewModel.approvedCount, Colors.green),
-          _buildStatCard('Rejected', viewModel.rejectedCount, Colors.red),
-        ],
+  Widget _buildStatCard(String title, String value, Color color) {
+    return Expanded(
+      child: Card(
+        elevation: 2,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            children: [
+              Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 4),
+              Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildStatCard(String label, int count, Color color) {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
+  Widget _buildFilterChip(String label, String filter, AdminDashboardViewModel viewModel) {
+    return FilterChip(
+      label: Text(label),
+      selected: viewModel.selectedStatusFilter == filter,
+      onSelected: (selected) {
+        if (selected) {
+          viewModel.setStatusFilter(filter);
+        }
+      },
+      backgroundColor: Colors.grey.shade200,
+      selectedColor: Colors.blue.shade100,
+    );
+  }
+
+  Widget _buildBody(AdminDashboardViewModel viewModel) {
+    if (viewModel.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (viewModel.errorMessage != null) {
+      return Center(
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              count.toString(),
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(viewModel.errorMessage!),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => viewModel.loadApplications(),
+              child: const Text('Retry'),
             ),
-            Text(label, style: TextStyle(fontSize: 12, color: color)),
           ],
         ),
-      ),
+      );
+    }
+
+    if (viewModel.applications.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.assignment_turned_in, size: 80, color: Colors.grey),
+            SizedBox(height: 16),
+            Text('No Applications Found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            SizedBox(height: 8),
+            Text('No students have submitted applications yet', style: TextStyle(fontSize: 14, color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: viewModel.applications.length,
+      itemBuilder: (context, index) {
+        final app = viewModel.applications[index];
+        return _buildApplicationCard(app, viewModel);
+      },
     );
   }
 
-  Widget _buildFilterTabs(AdminDashboardViewModel viewModel) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          _buildFilterChip('All', 'all', viewModel),
-          _buildFilterChip('Pending', 'pending', viewModel),
-          _buildFilterChip('Approved', 'approved', viewModel),
-          _buildFilterChip('Rejected', 'rejected', viewModel),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, String value, AdminDashboardViewModel viewModel) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label),
-        selected: viewModel.selectedStatusFilter == value,
-        onSelected: (_) => viewModel.setStatusFilter(value),
-        backgroundColor: Colors.grey[200],
-        selectedColor: Colors.blue[100],
-      ),
-    );
-  }
-
-  Widget _buildApplicationCard(Application application) {
+  Widget _buildApplicationCard(Application application, AdminDashboardViewModel viewModel) {
     Color statusColor;
     IconData statusIcon;
+    String statusText;
     
     switch (application.status) {
       case 'pending':
         statusColor = Colors.orange;
         statusIcon = Icons.hourglass_empty;
+        statusText = 'PENDING REVIEW';
         break;
       case 'approved':
         statusColor = Colors.green;
         statusIcon = Icons.check_circle;
+        statusText = 'APPROVED';
         break;
       case 'rejected':
         statusColor = Colors.red;
         statusIcon = Icons.cancel;
+        statusText = 'REJECTED';
         break;
       default:
         statusColor = Colors.grey;
         statusIcon = Icons.help_outline;
+        statusText = 'UNKNOWN';
     }
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: application.status == 'pending' 
+            ? BorderSide(color: Colors.orange.shade300, width: 2)
+            : BorderSide.none,
+      ),
       child: ExpansionTile(
         leading: CircleAvatar(
           backgroundColor: statusColor.withOpacity(0.2),
@@ -251,35 +397,35 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           children: [
             Text(
               application.studentName ?? 'Unknown Student',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 4),
             Text(
-              '${application.studentNumber ?? 'No Number'} • Year ${application.yearOfStudy}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              'Year ${application.yearOfStudy} Student',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             ),
           ],
         ),
-        subtitle: Wrap(
-          spacing: 8,
-          children: application.modules.map((module) {
-            return Chip(
-              label: Text(module.moduleName),
-              backgroundColor: Colors.blue.shade50,
-              labelStyle: const TextStyle(fontSize: 10),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            );
-          }).toList(),
+        subtitle: Text(
+          'Submitted: ${_formatDate(application.submittedAt)}',
+          style: TextStyle(fontSize: 12, color: Colors.grey[500]),
         ),
         trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: statusColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(20),
           ),
-          child: Text(
-            application.status.toUpperCase(),
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: statusColor),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(statusIcon, size: 16, color: statusColor),
+              const SizedBox(width: 4),
+              Text(
+                statusText,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: statusColor),
+              ),
+            ],
           ),
         ),
         children: [
@@ -288,92 +434,219 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Divider(),
-                _buildDetailRow('Student Email', application.studentEmail ?? 'N/A'),
-                _buildDetailRow('Student Number', application.studentNumber ?? 'N/A'),
-                _buildDetailRow('Year of Study', 'Year ${application.yearOfStudy}'),
-                _buildDetailRow('Submitted', _formatDate(application.submittedAt)),
-                _buildDetailRow('Last Updated', _formatDate(application.updatedAt)),
+                // Student Information
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('📋 STUDENT INFORMATION', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      const SizedBox(height: 8),
+                      _buildInfoRow('Student Number', application.studentNumber ?? 'N/A'),
+                      _buildInfoRow('Email', application.studentEmail ?? 'N/A'),
+                      _buildInfoRow('Year of Study', 'Year ${application.yearOfStudy}'),
+                      _buildInfoRow('Student ID', application.userId.substring(0, 8)),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 12),
-                const Text('Modules Applied:', style: TextStyle(fontWeight: FontWeight.bold)),
-                ...application.modules.map((module) => Padding(
-                  padding: const EdgeInsets.only(left: 16, top: 4),
-                  child: Text('• ${module.moduleName} (Year ${module.academicLevel}) - ${module.meetsRequirements ? "Meets requirements" : "Does not meet requirements"}'),
-                )),
+                
+                // Modules
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('📚 APPLIED MODULES', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      const SizedBox(height: 8),
+                      ...application.modules.asMap().entries.map((entry) {
+                        final index = entry.key + 1;
+                        final module = entry.value;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Module $index:', style: const TextStyle(fontWeight: FontWeight.w500)),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(
+                                    module.meetsRequirements ? Icons.check_circle : Icons.warning,
+                                    size: 16,
+                                    color: module.meetsRequirements ? Colors.green : Colors.orange,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Text(module.moduleName)),
+                                  Text('Year ${module.academicLevel}', style: const TextStyle(fontSize: 12)),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 12),
-                InkWell(
-                  onTap: () => _viewDocument(application.documentUrl),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
+                
+                // Additional Notes
+                if (application.additionalNotes != null && application.additionalNotes!.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
+                      color: Colors.purple.shade50,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.description, size: 16),
-                        const SizedBox(width: 8),
-                        const Text('View Supporting Document'),
-                        const Spacer(),
-                        const Icon(Icons.open_in_new, size: 16),
+                        const Text(' ADDITIONAL NOTES', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        const SizedBox(height: 8),
+                        Text(application.additionalNotes!),
                       ],
                     ),
                   ),
-                ),
-                if (application.additionalNotes?.isNotEmpty == true) ...[
                   const SizedBox(height: 12),
-                  const Text('Additional Notes:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(application.additionalNotes!),
                 ],
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    if (application.status == 'pending') ...[
+                
+                // Document
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.attach_file, color: Colors.orange),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => _handleStatusChange(application, 'approved'),
-                          icon: const Icon(Icons.check, size: 18),
-                          label: const Text('Approve'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(' SUPPORTING DOCUMENT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            Text(
+                              'Click the button to view the uploaded document',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => _handleStatusChange(application, 'rejected'),
-                          icon: const Icon(Icons.close, size: 18),
-                          label: const Text('Reject'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _deleteApplication(application),
-                          icon: const Icon(Icons.delete, size: 18),
-                          label: const Text('Delete'),
-                          style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                        ),
-                      ),
-                    ] else ...[
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _deleteApplication(application),
-                          icon: const Icon(Icons.delete),
-                          label: const Text('Delete'),
-                          style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                      ElevatedButton.icon(
+                        onPressed: () => _launchDocument(application.documentUrl),
+                        icon: const Icon(Icons.visibility, size: 16),
+                        label: const Text('View'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
                         ),
                       ),
                     ],
-                  ],
+                  ),
                 ),
+                
+                const SizedBox(height: 16),
+                const Divider(),
+                
+                // Admin Actions
+                const Text(' ADMIN ACTIONS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 12),
+                
+                if (application.status == 'pending') ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _showReviewDialog(viewModel, application),
+                          icon: const Icon(Icons.rate_review),
+                          label: const Text('Review Application'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _updateStatus(viewModel, application.id, 'approved'),
+                          icon: const Icon(Icons.check_circle),
+                          label: const Text('Quick Approve'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.green,
+                            side: const BorderSide(color: Colors.green),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _updateStatus(viewModel, application.id, 'rejected'),
+                          icon: const Icon(Icons.cancel),
+                          label: const Text('Quick Reject'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            side: const BorderSide(color: Colors.red),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _confirmDelete(viewModel, application.id),
+                          icon: const Icon(Icons.delete),
+                          label: const Text('Delete'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.grey,
+                            side: const BorderSide(color: Colors.grey),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _updateStatus(viewModel, application.id, 'pending'),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Reopen Review'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.orange,
+                            side: const BorderSide(color: Colors.orange),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _confirmDelete(viewModel, application.id),
+                          icon: const Icon(Icons.delete),
+                          label: const Text('Delete'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            side: const BorderSide(color: Colors.red),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -382,18 +655,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildInfoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          SizedBox(
-            width: 120,
-            child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-          ),
+          Text(label, style: const TextStyle(color: Colors.grey)),
           Expanded(
-            child: Text(value, style: const TextStyle(fontSize: 13)),
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -401,6 +676,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+    return '${date.day}/${date.month}/${date.year} at ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 }
