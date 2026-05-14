@@ -17,12 +17,12 @@ class Application {
   final String? additionalNotes;
   final DateTime submittedAt;
   final DateTime updatedAt;
-  final List<ModuleApplication> modules;
-
+  List<ModuleApplication> modules;
+  
   // For admin view - student info
-  final String? studentName;
-  final String? studentNumber;
-  final String? studentEmail;
+  String? studentName;
+  String? studentNumber;
+  String? studentEmail;
 
   Application({
     required this.id,
@@ -47,23 +47,36 @@ class Application {
       id: json['id'],
       userId: json['user_id'],
       yearOfStudy: json['year_of_study'],
-      status: json['status'],
-      documentUrl: json['document_url'],
+      status: json['status'] ?? 'pending',
+      documentUrl: json['document_url'] ?? '',
       storagePath: json['storage_path'],
       originalFilename: json['original_filename'],
       fileSize: json['file_size'],
       additionalNotes: json['additional_notes'],
-      submittedAt: DateTime.parse(json['submitted_at']),
-      updatedAt: DateTime.parse(json['updated_at']),
+      submittedAt: json['submitted_at'] != null 
+          ? DateTime.parse(json['submitted_at']) 
+          : DateTime.now(),
+      updatedAt: json['updated_at'] != null 
+          ? DateTime.parse(json['updated_at']) 
+          : DateTime.now(),
       modules: [],
-      studentName: json['profiles'] != null
-          ? json['profiles']['full_name']
-          : null,
-      studentNumber: json['profiles'] != null
-          ? json['profiles']['student_number']
-          : null,
-      studentEmail: json['profiles'] != null ? json['profiles']['email'] : null,
     );
+  }
+  
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'year_of_study': yearOfStudy,
+      'status': status,
+      'document_url': documentUrl,
+      'storage_path': storagePath,
+      'original_filename': originalFilename,
+      'file_size': fileSize,
+      'additional_notes': additionalNotes,
+      'submitted_at': submittedAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+    };
   }
 }
 
@@ -88,7 +101,7 @@ class ModuleApplication {
       applicationId: json['application_id'],
       academicLevel: json['academic_level'],
       moduleName: json['module_name'],
-      meetsRequirements: json['meets_requirements'],
+      meetsRequirements: json['meets_requirements'] ?? false,
     );
   }
 }
@@ -118,3 +131,5 @@ class Module {
     );
   }
 }
+  
+
