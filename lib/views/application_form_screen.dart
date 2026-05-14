@@ -5,15 +5,17 @@
 //BENNY HLUNGWANE 224022767
 //BUKAMUSO SHUDUFHADZO LUVHENGO 224015143
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../viewmodels/application_form_viewmodel.dart';
 import '../models/application.dart';
+import '../viewmodels/auth_viewmodel.dart';
 
 class ApplicationFormScreen extends StatefulWidget {
   final Application? applicationToEdit;
-
   const ApplicationFormScreen({super.key, this.applicationToEdit});
 
   @override
@@ -22,8 +24,6 @@ class ApplicationFormScreen extends StatefulWidget {
 
 class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
   final _formKey = GlobalKey<FormState>();
-
-  // Form fields
   int? _yearOfStudy;
   int? _firstModuleLevel;
   String? _firstModuleName;
@@ -33,19 +33,18 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
   String? _secondModuleName;
   bool _secondModuleMeetsRequirements = false;
   bool _confirmEligibility = false;
-  File? _documentFile;
-  String? _existingDocumentUrl;
   String? _additionalNotes;
-
+  File? _mobileFile;
+  Uint8List? _webFileBytes;
+  String? _webFileName;
+  String? _existingDocumentUrl;
+  bool _hasFile = false;
   List<Module> _modules = [];
 
   @override
   void initState() {
     super.initState();
-    final viewModel = Provider.of<ApplicationFormViewModel>(
-      context,
-      listen: false,
-    );
+    final viewModel = Provider.of<ApplicationFormViewModel>(context, listen: false);
     viewModel.loadModules();
 
     if (widget.applicationToEdit != null) {
@@ -78,43 +77,33 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
         allowMultiple: false,
       );
 
       if (result != null) {
-        final file = File(result.files.single.path!);
-        final fileSize = await file.length();
+        final file = result.files.first;
         const maxSize = 10 * 1024 * 1024;
-
-        if (fileSize > maxSize) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('File size exceeds 10MB limit'),
-              backgroundColor: Colors.red,
-            ),
-          );
+        if (file.size > maxSize) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File size exceeds 10MB'), backgroundColor: Colors.red));
           return;
         }
 
-        setState(() {
-          _documentFile = file;
-        });
+        setState(() => _hasFile = true);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('File selected: ${result.files.single.name}'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (kIsWeb) {
+          _webFileBytes = file.bytes;
+          _webFileName = file.name;
+          _mobileFile = null;
+        } else if (file.path != null) {
+          _mobileFile = File(file.path!);
+          _webFileBytes = null;
+          _webFileName = file.name;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Selected: ${file.name}'), backgroundColor: Colors.green));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error selecting file: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
     }
   }
 
@@ -124,445 +113,112 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
 
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
-
-    if (_documentFile == null && _existingDocumentUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please upload supporting document'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    
+    bool hasFile = kIsWeb ? _webFileBytes != null : _mobileFile != null;
+    if (!hasFile && _existingDocumentUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please upload document'), backgroundColor: Colors.red));
       return;
     }
-
     if (!_confirmEligibility) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please confirm eligibility'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Confirm eligibility'), backgroundColor: Colors.red));
       return;
     }
 
-    final viewModel = Provider.of<ApplicationFormViewModel>(
-      context,
-      listen: false,
-    );
-
+    final viewModel = Provider.of<ApplicationFormViewModel>(context, listen: false);
     final success = await viewModel.submitApplication(
       yearOfStudy: _yearOfStudy!,
-      firstModule: {
-        'academic_level': _firstModuleLevel,
-        'module_name': _firstModuleName,
-        'meets_requirements': _firstModuleMeetsRequirements,
-      },
-      secondModule: _includeSecondModule && _secondModuleName != null
-          ? {
-              'academic_level': _secondModuleLevel,
-              'module_name': _secondModuleName,
-              'meets_requirements': _secondModuleMeetsRequirements,
-            }
-          : null,
-      document: _documentFile,
+      firstModule: {'academic_level': _firstModuleLevel, 'module_name': _firstModuleName, 'meets_requirements': _firstModuleMeetsRequirements},
+      secondModule: _includeSecondModule && _secondModuleName != null ? {'academic_level': _secondModuleLevel, 'module_name': _secondModuleName, 'meets_requirements': _secondModuleMeetsRequirements} : null,
+      mobileFile: _mobileFile,
+      webFileBytes: _webFileBytes,
+      webFileName: _webFileName,
       additionalNotes: _additionalNotes,
       existingDocumentUrl: _existingDocumentUrl,
     );
 
     if (mounted) {
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              widget.applicationToEdit != null
-                  ? 'Application updated!'
-                  : 'Application submitted!',
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Application submitted!'), backgroundColor: Colors.green));
         Navigator.pop(context, true);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(viewModel.errorMessage ?? 'Submission failed'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(viewModel.errorMessage ?? 'Failed'), backgroundColor: Colors.red));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final authViewModel = Provider.of<AuthViewModel>(context);
+    if (authViewModel.userRole == 'admin') {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Access Denied'), backgroundColor: Colors.red),
+        body: const Center(child: Text('Admins cannot submit applications')),
+      );
+    }
+
     final viewModel = Provider.of<ApplicationFormViewModel>(context);
     _modules = viewModel.availableModules;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.applicationToEdit != null
-              ? 'Edit Application'
-              : 'New Application',
-        ),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-      ),
-      body: viewModel.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Section 1: Academic Information
-                    _buildSection(
-                      title: 'Academic Information',
-                      icon: Icons.school,
-                      color: Colors.blue,
-                      child: DropdownButtonFormField<int>(
-                        initialValue: _yearOfStudy,
-                        decoration: const InputDecoration(
-                          labelText: 'Current Year of Study *',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(value: 1, child: Text('Year 1')),
-                          DropdownMenuItem(value: 2, child: Text('Year 2')),
-                          DropdownMenuItem(value: 3, child: Text('Year 3')),
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _yearOfStudy = value),
-                        validator: (value) => value == null
-                            ? 'Please select year of study'
-                            : null,
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Section 2: First Module
-                    _buildSection(
-                      title: 'First Module (Required)',
-                      icon: Icons.library_books,
-                      color: Colors.green,
-                      child: Column(
-                        children: [
-                          DropdownButtonFormField<int>(
-                            initialValue: _firstModuleLevel,
-                            decoration: const InputDecoration(
-                              labelText: 'Academic Level *',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: const [
-                              DropdownMenuItem(value: 1, child: Text('Year 1')),
-                              DropdownMenuItem(value: 2, child: Text('Year 2')),
-                              DropdownMenuItem(value: 3, child: Text('Year 3')),
-                            ],
-                            onChanged: (value) {
-                              setState(() {
-                                _firstModuleLevel = value;
-                                _firstModuleName = null;
-                              });
-                            },
-                            validator: (value) => value == null
-                                ? 'Please select academic level'
-                                : null,
-                          ),
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            initialValue: _firstModuleName,
-                            decoration: const InputDecoration(
-                              labelText: 'Select Module *',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: _firstModuleLevel != null
-                                ? _getModulesByLevel(_firstModuleLevel!).map((
-                                    module,
-                                  ) {
-                                    return DropdownMenuItem(
-                                      value: module.moduleName,
-                                      child: Text(
-                                        '${module.moduleCode} - ${module.moduleName}',
-                                      ),
-                                    );
-                                  }).toList()
-                                : [],
-                            onChanged: (value) =>
-                                setState(() => _firstModuleName = value),
-                            validator: (value) =>
-                                value == null ? 'Please select a module' : null,
-                          ),
-                          const SizedBox(height: 12),
-                          CheckboxListTile(
-                            title: const Text(
-                              'I meet the minimum requirements for this module',
-                            ),
-                            value: _firstModuleMeetsRequirements,
-                            onChanged: (value) => setState(
-                              () => _firstModuleMeetsRequirements = value!,
-                            ),
-                            controlAffinity: ListTileControlAffinity.leading,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Section 3: Second Module (Optional)
-                    Card(
-                      child: Column(
-                        children: [
-                          CheckboxListTile(
-                            title: const Text(
-                              'Apply for a second module (Optional)',
-                            ),
-                            value: _includeSecondModule,
-                            onChanged: (value) =>
-                                setState(() => _includeSecondModule = value!),
-                          ),
-                          if (_includeSecondModule)
-                            Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                children: [
-                                  DropdownButtonFormField<int>(
-                                    initialValue: _secondModuleLevel,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Academic Level',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    items: const [
-                                      DropdownMenuItem(
-                                        value: 1,
-                                        child: Text('Year 1'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 2,
-                                        child: Text('Year 2'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 3,
-                                        child: Text('Year 3'),
-                                      ),
-                                    ],
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _secondModuleLevel = value;
-                                        _secondModuleName = null;
-                                      });
-                                    },
-                                  ),
-                                  const SizedBox(height: 12),
-                                  DropdownButtonFormField<String>(
-                                    initialValue: _secondModuleName,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Select Module',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    items: _secondModuleLevel != null
-                                        ? _getModulesByLevel(
-                                            _secondModuleLevel!,
-                                          ).map((module) {
-                                            return DropdownMenuItem(
-                                              value: module.moduleName,
-                                              child: Text(
-                                                '${module.moduleCode} - ${module.moduleName}',
-                                              ),
-                                            );
-                                          }).toList()
-                                        : [],
-                                    onChanged: (value) => setState(
-                                      () => _secondModuleName = value,
-                                    ),
-                                    validator: (value) {
-                                      if (_includeSecondModule &&
-                                          value == null) {
-                                        return 'Please select a module';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                  const SizedBox(height: 12),
-                                  CheckboxListTile(
-                                    title: const Text(
-                                      'I meet the minimum requirements for this module',
-                                    ),
-                                    value: _secondModuleMeetsRequirements,
-                                    onChanged: (value) => setState(
-                                      () => _secondModuleMeetsRequirements =
-                                          value!,
-                                    ),
-                                    controlAffinity:
-                                        ListTileControlAffinity.leading,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Section 4: Supporting Documents
-                    _buildSection(
-                      title: 'Supporting Documents',
-                      icon: Icons.attach_file,
-                      color: Colors.orange,
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  _documentFile != null
-                                      ? 'New file: ${_documentFile!.path.split('/').last}'
-                                      : (_existingDocumentUrl != null
-                                            ? 'Current document uploaded'
-                                            : 'No file selected'),
-                                  style: TextStyle(color: Colors.grey[600]),
-                                ),
-                              ),
-                              ElevatedButton.icon(
-                                onPressed: _pickDocument,
-                                icon: const Icon(Icons.upload),
-                                label: Text(
-                                  _documentFile != null
-                                      ? 'Change File'
-                                      : 'Upload',
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (_existingDocumentUrl != null &&
-                              _documentFile == null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                'Keeping existing document. Upload new file to replace.',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.orange[700],
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Section 5: Additional Notes
-                    _buildSection(
-                      title: 'Additional Notes (Optional)',
-                      icon: Icons.note,
-                      color: Colors.purple,
-                      child: TextFormField(
-                        initialValue: _additionalNotes,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          hintText:
-                              'Any additional information you want to provide...',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (value) => _additionalNotes = value,
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Section 6: Confirmation
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red.shade200),
-                      ),
-                      child: CheckboxListTile(
-                        title: const Text(
-                          'I confirm that all information provided is accurate and I understand that eligibility decisions are made by administrative staff',
-                          style: TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        value: _confirmEligibility,
-                        onChanged: (value) =>
-                            setState(() => _confirmEligibility = value!),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Submit Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _submitForm,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: Colors.blue,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          widget.applicationToEdit != null
-                              ? 'Update Application'
-                              : 'Submit Application',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-    );
-  }
-
-  Widget _buildSection({
-    required String title,
-    required IconData icon,
-    required Color color,
-    required Widget child,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      appBar: AppBar(title: Text(widget.applicationToEdit != null ? 'Edit Application' : 'New Application'), backgroundColor: Colors.blue),
+      body: viewModel.isLoading ? const Center(child: CircularProgressIndicator()) : SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: Column(
             children: [
-              Icon(icon, size: 20, color: color),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
+              DropdownButtonFormField<int>(
+                value: _yearOfStudy,
+                decoration: const InputDecoration(labelText: 'Year of Study *'),
+                items: const [DropdownMenuItem(value: 1, child: Text('Year 1')), DropdownMenuItem(value: 2, child: Text('Year 2')), DropdownMenuItem(value: 3, child: Text('Year 3'))],
+                onChanged: (value) => setState(() => _yearOfStudy = value),
+                validator: (value) => value == null ? 'Required' : null,
               ),
+              const SizedBox(height: 20),
+              DropdownButtonFormField<int>(
+                value: _firstModuleLevel,
+                decoration: const InputDecoration(labelText: 'First Module Level *'),
+                items: const [DropdownMenuItem(value: 1, child: Text('Year 1')), DropdownMenuItem(value: 2, child: Text('Year 2')), DropdownMenuItem(value: 3, child: Text('Year 3'))],
+                onChanged: (value) => setState(() => _firstModuleLevel = value),
+                validator: (value) => value == null ? 'Required' : null,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _firstModuleName,
+                decoration: const InputDecoration(labelText: 'First Module *'),
+                items: _firstModuleLevel != null ? _getModulesByLevel(_firstModuleLevel!).map((m) => DropdownMenuItem(value: m.moduleName, child: Text(m.moduleName))).toList() : [],
+                onChanged: (value) => setState(() => _firstModuleName = value),
+                validator: (value) => value == null ? 'Required' : null,
+              ),
+              CheckboxListTile(title: const Text('Meet requirements'), value: _firstModuleMeetsRequirements, onChanged: (v) => setState(() => _firstModuleMeetsRequirements = v!)),
+              CheckboxListTile(title: const Text('Apply for second module'), value: _includeSecondModule, onChanged: (v) => setState(() => _includeSecondModule = v!)),
+              if (_includeSecondModule) ...[
+                DropdownButtonFormField<int>(
+                  value: _secondModuleLevel,
+                  decoration: const InputDecoration(labelText: 'Second Module Level'),
+                  items: const [DropdownMenuItem(value: 1, child: Text('Year 1')), DropdownMenuItem(value: 2, child: Text('Year 2')), DropdownMenuItem(value: 3, child: Text('Year 3'))],
+                  onChanged: (value) => setState(() => _secondModuleLevel = value),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: _secondModuleName,
+                  decoration: const InputDecoration(labelText: 'Second Module'),
+                  items: _secondModuleLevel != null ? _getModulesByLevel(_secondModuleLevel!).map((m) => DropdownMenuItem(value: m.moduleName, child: Text(m.moduleName))).toList() : [],
+                  onChanged: (value) => setState(() => _secondModuleName = value),
+                ),
+                CheckboxListTile(title: const Text('Meet requirements'), value: _secondModuleMeetsRequirements, onChanged: (v) => setState(() => _secondModuleMeetsRequirements = v!)),
+              ],
+              const SizedBox(height: 20),
+              Row(children: [Expanded(child: Text(_hasFile ? _webFileName ?? 'File selected' : 'No file')), ElevatedButton.icon(onPressed: _pickDocument, icon: const Icon(Icons.upload), label: const Text('Upload'))]),
+              const SizedBox(height: 20),
+              TextFormField(maxLines: 3, decoration: const InputDecoration(labelText: 'Additional Notes'), onChanged: (v) => _additionalNotes = v),
+              const SizedBox(height: 20),
+              CheckboxListTile(title: const Text('I confirm eligibility'), value: _confirmEligibility, onChanged: (v) => setState(() => _confirmEligibility = v!)),
+              const SizedBox(height: 24),
+              ElevatedButton(onPressed: _submitForm, style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)), child: const Text('Submit Application')),
             ],
           ),
-          const SizedBox(height: 12),
-          child,
-        ],
+        ),
       ),
     );
   }
