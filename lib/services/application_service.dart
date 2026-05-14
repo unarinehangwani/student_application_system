@@ -1,5 +1,6 @@
-//STUDENT NAMES :BONTLE NICO MOTHUDI, MSAWAKHE MLAMBO, UNARINE HANGWANI, TSHIAMO GOMOLEMO GOITSEMODIMO, BENNY HLUNGWANE, Bukamuso Shudufhadzo Luvhengo 
+//STUDENT NAMES :BONTLE NICO MOTHUDI, MSAWAKHE MLAMBO, UNARINE HANGWANI, TSHIAMO GOMOLEMO GOITSEMODIMO, BENNY HLUNGWANE, Bukamuso Shudufhadzo Luvhengo
 //STUDENT NUMBERS : 224124772, 223059218,224073925, 223059551, 224022767, 224015143
+//Improved comment for clarity
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/application.dart';
 
@@ -153,13 +154,10 @@ class ApplicationService {
     String newStatus,
   ) async {
     try {
-      await _supabase
-          .from('applications')
-          .update({
-            'status': newStatus,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', applicationId);
+      await _supabase.from('applications').update({
+        'status': newStatus,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', applicationId);
     } catch (e) {
       print('Error updating status: $e');
       rethrow;
