@@ -1,4 +1,9 @@
-// GROUP MEMBERS: [ALL NAMES AND STUDENT NUMBERS HERE]
+//BONTLE NICO MOTHUDI 224124772
+// MSAWAKHE MLAMBO 223059218
+//UNARINE HANGWANI 223059218
+//TSHIAMO GOMOLEMO GOITSEMODIMO 223059551
+//BENNY HLUNGWANE 224022767
+//Bukamuso Shudufhadzo Luvhengo 224015143
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
@@ -28,9 +33,6 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ============================================
-  // SIGN UP METHOD - MATCHES AUTH SERVICE
-  // ============================================
   Future<bool> signUp({
     required String email,
     required String password,
@@ -42,7 +44,6 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Validate student number (8 digits)
       if (studentNumber.length != 8 ||
           !RegExp(r'^\d+$').hasMatch(studentNumber)) {
         _errorMessage = 'Student number must be 8 digits';
@@ -78,9 +79,6 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  // ============================================
-  // SIGN IN METHOD - MATCHES AUTH SERVICE
-  // ============================================
   Future<bool> signIn({required String email, required String password}) async {
     _isLoading = true;
     _errorMessage = null;
@@ -112,9 +110,6 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  // ============================================
-  // SIGN OUT METHOD - MATCHES AUTH SERVICE
-  // ============================================
   Future<void> signOut() async {
     await _authService.signOut();
     _currentUser = null;
@@ -122,18 +117,7 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ============================================
-  // HELPER METHODS
-  // ============================================
   bool isAuthenticated() {
     return _authService.isAuthenticated();
-  }
-
-  Future<bool> isAdmin() async {
-    return await _authService.isAdmin();
-  }
-
-  Future<bool> isStudent() async {
-    return await _authService.isStudent();
   }
 }
