@@ -2,6 +2,7 @@
 //STUDENT NUMBERS : 224124772, 223059218,224073925, 223059551, 224022767, 224015143
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/material.dart';
 
 // ViewModels
 import 'viewmodels/auth_viewmodel.dart';
