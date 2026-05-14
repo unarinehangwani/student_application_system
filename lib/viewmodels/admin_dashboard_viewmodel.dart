@@ -3,14 +3,14 @@
 //UNARINE HANGWANI 223059218
 //TSHIAMO GOMOLEMO GOITSEMODIMO 223059551
 //BENNY HLUNGWANE 224022767
-//BUKAMUSO SHUDUFHADZO LUVHENGO 224015143
+//Bukamuso Shudufhadzo Luvhengo 224015143
 import 'package:flutter/material.dart';
 import '../models/application.dart';
 import '../services/application_service.dart';
 
 class AdminDashboardViewModel extends ChangeNotifier {
   final ApplicationService _applicationService = ApplicationService();
-  
+
   List<Application> _applications = [];
   List<Application> _filteredApplications = [];
   bool _isLoading = true;
@@ -21,6 +21,14 @@ class AdminDashboardViewModel extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String get selectedStatusFilter => _selectedStatusFilter;
+
+  int get totalCount => _applications.length;
+  int get pendingCount =>
+      _applications.where((a) => a.status == 'pending').length;
+  int get approvedCount =>
+      _applications.where((a) => a.status == 'approved').length;
+  int get rejectedCount =>
+      _applications.where((a) => a.status == 'rejected').length;
 
   Future<void> loadApplications() async {
     _isLoading = true;
@@ -33,6 +41,7 @@ class AdminDashboardViewModel extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     } catch (e) {
+      print('Error loading applications: $e');
       _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
@@ -58,7 +67,7 @@ class AdminDashboardViewModel extends ChangeNotifier {
   Future<bool> updateStatus(String applicationId, String newStatus) async {
     try {
       await _applicationService.updateApplicationStatus(applicationId, newStatus);
-      await loadApplications(); // Refresh
+      await loadApplications();
       return true;
     } catch (e) {
       _errorMessage = e.toString();
@@ -70,7 +79,7 @@ class AdminDashboardViewModel extends ChangeNotifier {
   Future<bool> deleteApplication(String applicationId) async {
     try {
       await _applicationService.deleteApplication(applicationId);
-      await loadApplications(); // Refresh
+      await loadApplications();
       return true;
     } catch (e) {
       _errorMessage = e.toString();
@@ -78,9 +87,4 @@ class AdminDashboardViewModel extends ChangeNotifier {
       return false;
     }
   }
-
-  int get pendingCount => _applications.where((a) => a.status == 'pending').length;
-  int get approvedCount => _applications.where((a) => a.status == 'approved').length;
-  int get rejectedCount => _applications.where((a) => a.status == 'rejected').length;
-  int get totalCount => _applications.length;
 }
