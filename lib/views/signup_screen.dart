@@ -39,16 +39,18 @@ class _SignupScreenState extends State<SignupScreen> {
 
   Future<void> _handleSignUp() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     if (!_agreeTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please agree to the terms'), backgroundColor: Colors.orange),
+        const SnackBar(
+            content: Text('Please agree to the terms'),
+            backgroundColor: Colors.orange),
       );
       return;
     }
 
     final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
-    
+
     final success = await authViewModel.signUp(
       email: _emailController.text.trim(),
       password: _passwordController.text,
@@ -65,7 +67,8 @@ class _SignupScreenState extends State<SignupScreen> {
           content: const Text('Your account has been created. Please login.'),
           actions: [
             ElevatedButton(
-              onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen())),
+              onPressed: () => Navigator.pushReplacement(context,
+                  MaterialPageRoute(builder: (context) => const LoginScreen())),
               child: const Text('Go to Login'),
             ),
           ],
@@ -73,7 +76,9 @@ class _SignupScreenState extends State<SignupScreen> {
       );
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(authViewModel.errorMessage ?? 'Registration failed'), backgroundColor: Colors.red),
+        SnackBar(
+            content: Text(authViewModel.errorMessage ?? 'Registration failed'),
+            backgroundColor: Colors.red),
       );
     }
   }
@@ -97,20 +102,30 @@ class _SignupScreenState extends State<SignupScreen> {
             children: [
               Icon(Icons.person_add, size: 60, color: Colors.blue.shade600),
               const SizedBox(height: 16),
-              Text('Create Student Account', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+              Text('Create Student Account',
+                  style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade800)),
               const SizedBox(height: 32),
               TextFormField(
                 controller: _fullNameController,
-                decoration: InputDecoration(labelText: 'Full Name', prefixIcon: Icon(Icons.person)),
-                validator: (value) => value == null || value.isEmpty ? 'Please enter full name' : null,
+                decoration: InputDecoration(
+                    labelText: 'Full Name', prefixIcon: Icon(Icons.person)),
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Please enter full name'
+                    : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _studentNumberController,
                 keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: 'Student Number (8 digits)', prefixIcon: Icon(Icons.badge)),
+                decoration: InputDecoration(
+                    labelText: 'Student Number (8 digits)',
+                    prefixIcon: Icon(Icons.badge)),
                 validator: (value) {
-                  if (value == null || value.isEmpty) return 'Please enter student number';
+                  if (value == null || value.isEmpty)
+                    return 'Please enter student number';
                   if (value.length != 8) return 'Must be 8 digits';
                   return null;
                 },
@@ -119,8 +134,11 @@ class _SignupScreenState extends State<SignupScreen> {
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email)),
-                validator: (value) => value == null || value.isEmpty ? 'Please enter email' : null,
+                decoration: InputDecoration(
+                    labelText: 'Email', prefixIcon: Icon(Icons.email)),
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Please enter email'
+                    : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -129,9 +147,16 @@ class _SignupScreenState extends State<SignupScreen> {
                 decoration: InputDecoration(
                   labelText: 'Password',
                   prefixIcon: Icon(Icons.lock),
-                  suffixIcon: IconButton(icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility), onPressed: () => setState(() => _obscurePassword = !_obscurePassword)),
+                  suffixIcon: IconButton(
+                      icon: Icon(_obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword)),
                 ),
-                validator: (value) => value == null || value.length < 6 ? 'Password must be at least 6 characters' : null,
+                validator: (value) => value == null || value.length < 6
+                    ? 'Password must be at least 6 characters'
+                    : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -140,14 +165,24 @@ class _SignupScreenState extends State<SignupScreen> {
                 decoration: InputDecoration(
                   labelText: 'Confirm Password',
                   prefixIcon: Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(icon: Icon(_obscureConfirmPassword ? Icons.visibility_off : Icons.visibility), onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword)),
+                  suffixIcon: IconButton(
+                      icon: Icon(_obscureConfirmPassword
+                          ? Icons.visibility_off
+                          : Icons.visibility),
+                      onPressed: () => setState(() =>
+                          _obscureConfirmPassword = !_obscureConfirmPassword)),
                 ),
-                validator: (value) => value != _passwordController.text ? 'Passwords do not match' : null,
+                validator: (value) => value != _passwordController.text
+                    ? 'Passwords do not match'
+                    : null,
               ),
               const SizedBox(height: 16),
               Row(
                 children: [
-                  Checkbox(value: _agreeTerms, onChanged: (value) => setState(() => _agreeTerms = value!)),
+                  Checkbox(
+                      value: _agreeTerms,
+                      onChanged: (value) =>
+                          setState(() => _agreeTerms = value!)),
                   Expanded(child: Text('I agree to the Terms and Conditions')),
                 ],
               ),
@@ -156,8 +191,11 @@ class _SignupScreenState extends State<SignupScreen> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: authViewModel.isLoading ? null : _handleSignUp,
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-                  child: authViewModel.isLoading ? const CircularProgressIndicator() : const Text('Create Account'),
+                  style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16)),
+                  child: authViewModel.isLoading
+                      ? const CircularProgressIndicator()
+                      : const Text('Create Account'),
                 ),
               ),
             ],
